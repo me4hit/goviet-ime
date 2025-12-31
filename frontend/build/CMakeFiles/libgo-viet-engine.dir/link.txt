@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -shared -Wl,--dependency-file=CMakeFiles/libgo-viet-engine.dir/link.d  -o liblibgo-viet-engine.so "CMakeFiles/libgo-viet-engine.dir/src/main.cpp.o" "CMakeFiles/libgo-viet-engine.dir/src/engine.cpp.o"  -lFcitx5Core -lFcitx5Config -lFcitx5Utils -ldbus-1

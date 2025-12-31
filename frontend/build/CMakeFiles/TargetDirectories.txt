@@ -1,0 +1,7 @@
+/home/nghia/coding/goviet-ime/frontend/build/CMakeFiles/go-viet-engine.dir
+/home/nghia/coding/goviet-ime/frontend/build/CMakeFiles/edit_cache.dir
+/home/nghia/coding/goviet-ime/frontend/build/CMakeFiles/rebuild_cache.dir
+/home/nghia/coding/goviet-ime/frontend/build/CMakeFiles/list_install_components.dir
+/home/nghia/coding/goviet-ime/frontend/build/CMakeFiles/install.dir
+/home/nghia/coding/goviet-ime/frontend/build/CMakeFiles/install/local.dir
+/home/nghia/coding/goviet-ime/frontend/build/CMakeFiles/install/strip.dir

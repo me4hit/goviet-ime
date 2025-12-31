@@ -1,0 +1,14 @@
+# Binaries
+frontend/build/
+backend/goviet-daemon
+**/__pycache__/
+*.so
+*.o
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store

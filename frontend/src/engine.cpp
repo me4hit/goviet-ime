@@ -1,0 +1,123 @@
+#include "engine.h"
+#include <iostream>
+#include <vector>
+#include <fcitx/inputcontext.h>
+#include <fcitx/inputpanel.h>  // <--- ADD THIS IMPORTANT LINE
+
+GoVietEngine::GoVietEngine(fcitx::Instance *instance) : fcitx::InputMethodEngine() {
+    DBusError err;
+    dbus_error_init(&err);
+    conn = dbus_bus_get(DBUS_BUS_SESSION, &err);
+    if (dbus_error_is_set(&err)) {
+        std::cerr << "DBus Connection Error: " << err.message << std::endl;
+        dbus_error_free(&err);
+        conn = nullptr;
+    }
+}
+
+GoVietEngine::~GoVietEngine() {
+    if (conn) {
+        dbus_connection_unref(conn);
+    }
+}
+
+std::vector<fcitx::InputMethodEntry> GoVietEngine::listInputMethods() {
+    std::vector<fcitx::InputMethodEntry> entries;
+    fcitx::InputMethodEntry entry("goviet", "GoViet", "vi", "goviet");
+    entry.setLabel("V");
+    entry.setIcon("fcitx-goviet");
+    entry.setConfigurable(true);
+    entries.push_back(std::move(entry));
+    return entries;
+}
+
+void GoVietEngine::keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& keyEvent) {
+    if (keyEvent.isRelease()) return;
+
+    uint32_t sym = keyEvent.key().sym();
+    uint32_t state = keyEvent.key().states();
+    std::string preedit, commit;
+
+    // Call Go Backend
+    bool handled = callGoBackend(sym, state, preedit, commit);
+
+    if (handled) {
+        // Get InputContext from keyEvent instead of entry
+        auto inputContext = keyEvent.inputContext();
+
+        // Commit text (if any)
+        if (!commit.empty()) {
+            inputContext->commitString(commit);
+        }
+
+        // Show Preedit (if any)
+        if (!preedit.empty()) {
+            fcitx::Text text(preedit);
+            text.setCursor(preedit.length());
+            // Draw into the application's input field
+            inputContext->inputPanel().setClientPreedit(text);
+        } else {
+            // Clear preedit
+            inputContext->inputPanel().setClientPreedit(fcitx::Text());
+        }
+        
+        // Update display
+        inputContext->updatePreedit();
+        
+        // Intercept key
+        keyEvent.filterAndAccept();
+    }
+}
+
+// This function keeps the original logic
+bool GoVietEngine::callGoBackend(uint32_t keysym, uint32_t modifiers, std::string &preedit, std::string &commit) {
+    if (!conn) return false;
+
+    DBusError err;
+    dbus_error_init(&err);
+
+    DBusMessage* msg = dbus_message_new_method_call(
+        "com.github.goviet.ime",
+        "/Engine",
+        "com.github.goviet.ime",
+        "ProcessKey"
+    );
+
+    if (!msg) return false;
+
+    dbus_message_append_args(msg, DBUS_TYPE_UINT32, &keysym, DBUS_TYPE_UINT32, &modifiers, DBUS_TYPE_INVALID);
+
+    DBusMessage* reply = dbus_connection_send_with_reply_and_block(conn, msg, 200, &err);
+    dbus_message_unref(msg);
+
+    if (dbus_error_is_set(&err)) {
+        dbus_error_free(&err);
+        return false;
+    }
+
+    DBusMessageIter args;
+    if (!dbus_message_iter_init(reply, &args)) { dbus_message_unref(reply); return false; }
+
+    dbus_bool_t is_handled = false;
+    char *commit_cstr = NULL;
+    char *preedit_cstr = NULL;
+
+    if (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_BOOLEAN) {
+        dbus_message_iter_get_basic(&args, &is_handled);
+    }
+    
+    dbus_message_iter_next(&args);
+    if (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_STRING) {
+        dbus_message_iter_get_basic(&args, &commit_cstr);
+        if (commit_cstr) commit = std::string(commit_cstr);
+    }
+
+    dbus_message_iter_next(&args);
+    if (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_STRING) {
+        dbus_message_iter_get_basic(&args, &preedit_cstr);
+        if (preedit_cstr) preedit = std::string(preedit_cstr);
+    }
+
+    dbus_message_unref(reply);
+    return is_handled;
+}
