@@ -117,18 +117,29 @@ func TestCompositionEngine_HandleEscape(t *testing.T) {
 func TestCompositionEngine_HandleEnter(t *testing.T) {
 	engine := NewCompositionEngine()
 
-	// Type "abc"
+	// Type "ab"
 	engine.ProcessKey(KeyEvent{KeySym: 0x0061}) // a
 	engine.ProcessKey(KeyEvent{KeySym: 0x0062}) // b
 
-	// Press enter
+	// Press enter - should commit preedit WITHOUT newline (let app handle Enter)
 	result := engine.ProcessKey(KeyEvent{KeySym: KeyReturn})
 
 	if !result.Handled {
-		t.Error("Enter should be handled")
+		t.Error("Enter with preedit should be handled")
 	}
-	if result.CommitText != "ab\n" {
-		t.Errorf("CommitText = '%s', want 'ab\\n'", result.CommitText)
+	if result.CommitText != "ab" {
+		t.Errorf("CommitText = '%s', want 'ab' (no newline)", result.CommitText)
+	}
+}
+
+func TestCompositionEngine_HandleEnterEmpty(t *testing.T) {
+	engine := NewCompositionEngine()
+
+	// Press enter with empty buffer - should NOT be handled (pass through to app)
+	result := engine.ProcessKey(KeyEvent{KeySym: KeyReturn})
+
+	if result.Handled {
+		t.Error("Enter on empty buffer should pass through to app")
 	}
 }
 

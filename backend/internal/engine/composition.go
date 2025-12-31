@@ -170,13 +170,18 @@ func (e *CompositionEngine) handleSpecialKey(event KeyEvent) (ProcessResult, boo
 		return result, true
 
 	case KeyReturn:
-		// Commit current composition and add newline
+		// If we have preedit, commit it and let Enter pass through to app
+		// If no preedit, don't handle - let app receive the Enter key
 		preedit := e.GetPreedit()
-		e.Reset()
-		result.Handled = true
-		result.CommitText = preedit + "\n"
-		result.Preedit = ""
-		return result, true
+		if preedit != "" {
+			e.Reset()
+			result.Handled = true
+			result.CommitText = preedit // Don't add \n, let app handle Enter
+			result.Preedit = ""
+			return result, true
+		}
+		// No preedit - don't handle, let Enter pass through
+		return result, false
 
 	case KeyEscape:
 		// Cancel composition
@@ -331,16 +336,15 @@ func (e *CompositionEngine) updateSyllableStructure() {
 		}
 	}
 
-	// Preserve transformed nucleus if we have VowelMark applied (like ô from oo)
+	// Preserve transformed nucleus if it contains marked vowels (like ô from oo, ơ from ow)
+	// This allows multiple vowel transformations (e.g., ươ in 'người')
 	preservedNucleus := ""
-	if e.buffer.syllable.VowelMark != VowelNone && e.buffer.syllable.VowelMark != VowelDBar {
-		if e.buffer.syllable.Nucleus != "" {
-			// Check if nucleus contains a marked vowel
-			for _, r := range e.buffer.syllable.Nucleus {
-				if isMarkedVowelRune(r) {
-					preservedNucleus = e.buffer.syllable.Nucleus
-					break
-				}
+	if e.buffer.syllable.Nucleus != "" {
+		// Check if nucleus contains ANY marked vowel - not just VowelMark flag
+		for _, r := range e.buffer.syllable.Nucleus {
+			if isMarkedVowelRune(r) {
+				preservedNucleus = e.buffer.syllable.Nucleus
+				break
 			}
 		}
 	}
@@ -380,6 +384,7 @@ func (e *CompositionEngine) updateSyllableStructure() {
 	}
 
 	// Parse coda (final consonants) - skip consumed modifiers
+	// Need to handle multi-character codas like 'ng', 'nh', 'ch'
 	for i < len(runes) {
 		r := runes[i]
 		if isTelexModifier(r) {
@@ -387,6 +392,21 @@ func (e *CompositionEngine) updateSyllableStructure() {
 			i++
 			continue
 		}
+
+		// Check for 2-character coda patterns first
+		if i+1 < len(runes) && isVietnameseConsonantRune(r) {
+			nextR := runes[i+1]
+			if !isTelexModifier(nextR) && isVietnameseConsonantRune(nextR) {
+				twoChar := string(r) + string(nextR)
+				if isValidCoda(twoChar) {
+					coda += twoChar
+					i += 2
+					continue
+				}
+			}
+		}
+
+		// Check for single character coda
 		if isVietnameseConsonantRune(r) && isValidCoda(string(r)) {
 			coda += string(r)
 			i++
@@ -405,31 +425,38 @@ func (e *CompositionEngine) updateSyllableStructure() {
 	// Use preserved nucleus if we had a vowel mark transformation,
 	// but add any new vowels that came after
 	if preservedNucleus != "" {
-		// The preserved nucleus has the marked vowel (like 'ê' from 'ee')
-		// Raw nucleus contains all vowels including the consumed one
-		// We need to figure out how many vowels were in the original pattern
+		// The preserved nucleus has transformed vowels (like 'ê' from 'ee' or 'ươ' from 'uwow')
+		// Raw nucleus contains only regular vowels (modifiers like 'w' already skipped)
+		// We need to match preserved marked vowels with raw vowels
 
-		// Count non-modifier vowels in raw
 		rawNucleusRunes := []rune(nucleus)
+		preservedRunes := []rune(preservedNucleus)
+		preservedLen := len(preservedRunes)
 
-		// The modifier consumed one vowel char (e.g., 'ee' -> 'ê' means 2 raw chars -> 1 marked)
-		// preserved has 1 or more marked vowels, need to add vowels that came AFTER the pattern
+		// Count how many marked vowels are in preserved nucleus
+		// Each marked vowel (like 'ô' from 'oo') consumed an extra raw vowel
+		// But marks from 'w' modifier (like 'ơ' from 'ow') did NOT consume extra vowel
 
-		preservedLen := len([]rune(preservedNucleus))
+		// Strategy: count marked vowels that came from double-vowel patterns
+		// â from aa, ê from ee, ô from oo - these consumed 1 extra
+		// ơ from ow, ư from uw, ă from aw - these did NOT consume extra (w is modifier, already skipped)
 
-		// For patterns like 'oo'->ô, 'ee'->ê, 'aa'->â:
-		// - Raw has 2 vowels, preserved has 1 marked vowel
-		// - We consumed 1 extra vowel as modifier
-		// For patterns like 'ow'->ơ, 'uw'->ư:
-		// - Raw has 1 vowel + 1 modifier, preserved has 1 marked vowel
+		consumedExtraVowels := 0
+		for _, r := range preservedRunes {
+			// Only â, ê, ô can come from double-vowel patterns
+			// ơ, ư come from 'w' modifier, ă comes from 'aw'
+			if r == 'â' || r == 'Â' || r == 'ê' || r == 'Ê' || r == 'ô' || r == 'Ô' {
+				consumedExtraVowels++
+			}
+			// ơ, ư, ă - no extra vowel consumed since 'w' is already skipped
+		}
 
-		// Calculate: how many raw vowels correspond to preserved?
-		// If modifierCount > 0 for vowel marks, one vowel was consumed
-		consumedVowelChars := 1 // The repeated vowel like 'oo', 'ee', 'aa'
+		// Number of raw vowels that correspond to preserved
+		rawVowelsConsumed := preservedLen + consumedExtraVowels
 
-		startIdx := preservedLen + consumedVowelChars
-		if startIdx < len(rawNucleusRunes) {
-			e.buffer.syllable.Nucleus = preservedNucleus + string(rawNucleusRunes[startIdx:])
+		if rawVowelsConsumed < len(rawNucleusRunes) {
+			// Add remaining vowels after the preserved ones
+			e.buffer.syllable.Nucleus = preservedNucleus + string(rawNucleusRunes[rawVowelsConsumed:])
 		} else {
 			e.buffer.syllable.Nucleus = preservedNucleus
 		}

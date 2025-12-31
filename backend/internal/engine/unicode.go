@@ -130,11 +130,20 @@ func findTonePosition(nucleus []rune, coda string) int {
 		return 0
 	}
 
-	// Rule 1: Find marked vowels (these always get the tone)
+	// Rule 1: Find marked vowels (these get priority for tone placement)
+	// If there are MULTIPLE marked vowels (like ươ), use the LAST one
+	// Exception: 'iê', 'uô', 'ươ' - tone on the marked vowel (ê, ô, ơ)
+	markedPositions := []int{}
 	for i, r := range nucleus {
 		if isMarkedVowel(r) {
-			return i
+			markedPositions = append(markedPositions, i)
 		}
+	}
+
+	if len(markedPositions) > 0 {
+		// For patterns with multiple marked vowels (like 'ươ'), use the LAST one
+		// This gives 'ơ' priority over 'ư' in 'người'
+		return markedPositions[len(markedPositions)-1]
 	}
 
 	// Rule 2: For 'oa', 'oe', 'uy' patterns without coda -> second vowel

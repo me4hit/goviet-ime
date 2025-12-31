@@ -48,9 +48,12 @@ func TestRealWorld_DoubleVowelWithSuffix(t *testing.T) {
 		{"tooi -> tôi", []uint32{0x74, 0x6f, 0x6f, 0x69}, "tôi"},
 		// "mưa" = m-u-w-a (uw->ư)
 		{"muwa -> mưa", []uint32{0x6d, 0x75, 0x77, 0x61}, "mưa"},
-		// "lươn" = l-u-o-w-n (but this requires multiple marks - current limitation)
-		// For now, test simpler case: "bơi" = b-o-w-i
+		// "bơi" = b-o-w-i
 		{"bowi -> bơi", []uint32{0x62, 0x6f, 0x77, 0x69}, "bơi"},
+		// "người" = ng-u-w-o-w-i-f (multiple vowel marks: ư + ơ)
+		{"nguowif -> người", []uint32{0x6e, 0x67, 0x75, 0x77, 0x6f, 0x77, 0x69, 0x66}, "người"},
+		// "với" = v-o-w-i-s (ow->ơ, then add i, then sắc)
+		{"vowis -> với", []uint32{0x76, 0x6f, 0x77, 0x69, 0x73}, "với"},
 	}
 
 	for _, tt := range tests {
@@ -110,6 +113,10 @@ func TestRealWorld_ToneAfterCoda(t *testing.T) {
 		{"cac then s -> các", []uint32{0x63, 0x61, 0x63, 0x73}, "các"},
 		// "mát" = m-a-t-s
 		{"mat then s -> mát", []uint32{0x6d, 0x61, 0x74, 0x73}, "mát"},
+		// "càng" = c-a-n-g-f (tone after 2-char coda 'ng')
+		{"cangf -> càng", []uint32{0x63, 0x61, 0x6e, 0x67, 0x66}, "càng"},
+		// "tương" = t-u-o-w-n-g
+		{"tuowng -> tương", []uint32{0x74, 0x75, 0x6f, 0x77, 0x6e, 0x67}, "tương"},
 	}
 
 	for _, tt := range tests {

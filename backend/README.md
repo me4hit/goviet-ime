@@ -1,8 +1,19 @@
 # GoViet-IME Engine Backend
 
-## Overview
+Vietnamese input method engine written in Go for the GoViet-IME project.
 
-This is the Go backend engine for GoViet-IME, a Vietnamese input method for Linux using Fcitx5. The engine communicates with the Fcitx5 frontend via D-Bus.
+## Quick Start
+
+```bash
+# Run tests
+go test -v ./internal/engine/...
+
+# Build daemon
+go build -o goviet-daemon ./cmd/daemon/
+
+# Run daemon
+./goviet-daemon
+```
 
 ## Architecture
 
@@ -15,9 +26,9 @@ This is the Go backend engine for GoViet-IME, a Vietnamese input method for Linu
 │  │    InputMethod      │   │   OutputFormat      │              │
 │  │    Interface        │   │   Interface         │              │
 │  ├─────────────────────┤   ├─────────────────────┤              │
-│  │ - TelexMethod       │   │ - UnicodeFormat     │              │
-│  │ - VNIMethod (TODO)  │   │ - VNIFormat (TODO)  │              │
-│  │ - VIQRMethod (TODO) │   │ - TCVN3 (TODO)      │              │
+│  │ ✅ TelexMethod      │   │ ✅ UnicodeFormat    │              │
+│  │ ❌ VNIMethod        │   │ ❌ VNIFormat        │              │
+│  │ ❌ VIQRMethod       │   │ ❌ TCVN3Format      │              │
 │  └─────────────────────┘   └─────────────────────┘              │
 │            │                        │                           │
 │            └────────┬───────────────┘                           │
@@ -27,9 +38,7 @@ This is the Go backend engine for GoViet-IME, a Vietnamese input method for Linu
 │  ├─────────────────────────────────────────────────────────┤    │
 │  │ - ProcessKey(KeyEvent) ProcessResult                    │    │
 │  │ - Reset()                                               │    │
-│  │ - GetPreedit()                                          │    │
-│  │ - SetInputMethod(InputMethod)                           │    │
-│  │ - SetOutputFormat(OutputFormat)                         │    │
+│  │ - GetPreedit() string                                   │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -39,133 +48,106 @@ This is the Go backend engine for GoViet-IME, a Vietnamese input method for Linu
 
 ```
 backend/
-├── cmd/
-│   └── daemon/
-│       └── main.go          # D-Bus daemon entry point
-├── internal/
-│   └── engine/
-│       ├── types.go         # Core types and interfaces
-│       ├── composition.go   # Main composition engine
-│       ├── telex.go         # Telex input method
-│       ├── unicode.go       # Unicode output format
-│       ├── *_test.go        # Unit tests
+├── cmd/daemon/
+│   └── main.go              # D-Bus daemon entry point
+├── internal/engine/
+│   ├── types.go             # Core types & interfaces
+│   ├── composition.go       # Main composition engine
+│   ├── telex.go             # Telex input method
+│   ├── unicode.go           # Unicode output format
+│   ├── composition_test.go  # Engine tests
+│   ├── telex_test.go        # Telex tests
+│   ├── unicode_test.go      # Unicode tests
+│   ├── vietnamese_test.go   # Vietnamese word tests
+│   └── realworld_test.go    # Real-world scenario tests
 ├── go.mod
-└── go.sum
+├── go.sum
+├── goviet-daemon            # Compiled binary
+└── README.md                # This file
 ```
 
-## Key Components
+## Telex Input Method
 
-### Types (`types.go`)
+| Key | Function | Example |
+|-----|----------|---------|
+| `s` | Sắc (acute) | `as` → á |
+| `f` | Huyền (grave) | `af` → à |
+| `r` | Hỏi (hook) | `ar` → ả |
+| `x` | Ngã (tilde) | `ax` → ã |
+| `j` | Nặng (dot) | `aj` → ạ |
+| `z` | Remove tone | `ás` + `z` → as |
+| `aa` | Circumflex | `aa` → â |
+| `ee` | Circumflex | `ee` → ê |
+| `oo` | Circumflex | `oo` → ô |
+| `dd` | Stroke | `dd` → đ |
+| `ow` | Horn | `ow` → ơ |
+| `uw` | Horn | `uw` → ư |
+| `aw` | Breve | `aw` → ă |
 
-- **KeyEvent**: Represents keyboard input (keysym, modifiers)
-- **ProcessResult**: Output from processing a key (handled, commitText, preedit)
-- **Syllable**: Vietnamese syllable structure (onset, nucleus, coda, tones)
-- **ToneMark**: Vietnamese tones (sắc, huyền, hỏi, ngã, nặng)
-- **VowelMark**: Vowel modifications (ă, â, ê, ô, ơ, ư, đ)
+## Tone Placement Rules
 
-### Interfaces
+Using "quy tắc cũ" (old/traditional rule):
 
-- **Engine**: Main interface for input method engines
-- **InputMethod**: Interface for typing methods (Telex, VNI, etc.)
-- **OutputFormat**: Interface for output encodings (Unicode, VNI, etc.)
+| Pattern | Tone Position | Example |
+|---------|---------------|---------|
+| Single vowel | On that vowel | `án`, `ồ` |
+| `oa`, `oe`, `uy` | Second vowel | `hoá`, `huỷ` |
+| `ao`, `au`, `ay`, `ai` | First vowel | `chào`, `màu` |
+| `ia` | First vowel | `nghĩa`, `mía` |
+| `ua`, `ưa` | Second vowel | `mùa`, `lừa` |
+| Marked vowel (ă,â,ê,ô,ơ,ư) | On marked | `việt`, `đường` |
+| With coda | See rules | `oán`, `uyển` |
 
-### CompositionEngine (`composition.go`)
-
-The main engine that:
-- Processes keyboard input
-- Manages composition buffer
-- Coordinates between InputMethod and OutputFormat
-- Handles special keys (backspace, space, enter, escape)
-
-### TelexMethod (`telex.go`)
-
-Implements the Telex typing method:
-- Tone keys: `s` (sắc), `f` (huyền), `r` (hỏi), `x` (ngã), `j` (nặng), `z` (remove tone)
-- Double letters: `aa` → â, `ee` → ê, `oo` → ô, `dd` → đ
-- Horn modifier: `w` → ư/ơ/ă
-
-### UnicodeFormat (`unicode.go`)
-
-Implements Unicode (UTF-8) output:
-- Maps base vowels + tone marks to Unicode characters
-- Applies vowel marks (circumflex, breve, horn)
-- Composes syllables with correct tone placement
-
-## Usage
-
-### Running the Daemon
+## Testing
 
 ```bash
-cd backend
-go build -o goviet-daemon ./cmd/daemon/
-./goviet-daemon
-```
+# All tests
+go test ./internal/engine/...
 
-### Running Tests
-
-```bash
-cd backend
+# With verbose output
 go test -v ./internal/engine/...
+
+# Specific test pattern
+go test -v -run TestRealWorld ./internal/engine/...
+go test -v -run TestVietnamese ./internal/engine/...
+go test -v -run TestTelex ./internal/engine/...
+
+# Coverage
+go test -cover ./internal/engine/...
 ```
 
-## Extending the Engine
+## Known Limitations
 
-### Adding a New Input Method
-
-1. Create a new file (e.g., `vni.go`)
-2. Implement the `InputMethod` interface
-3. Add unit tests
-
-```go
-type VNIMethod struct{}
-
-func (v *VNIMethod) Name() string { return "VNI" }
-
-func (v *VNIMethod) ProcessChar(char rune, current *Syllable) (string, ToneMark, VowelMark, bool) {
-    // VNI uses numbers for tones: 1=sắc, 2=huyền, etc.
-    // Implement transformation logic here
-}
-
-// Implement other interface methods...
-```
-
-### Adding a New Output Format
-
-1. Create a new file (e.g., `vni_output.go`)
-2. Implement the `OutputFormat` interface
-3. Add character mapping tables
-
-```go
-type VNIOutputFormat struct{}
-
-func (v *VNIOutputFormat) Name() string { return "VNI Windows" }
-
-func (v *VNIOutputFormat) Compose(syllable *Syllable) string {
-    // Convert to VNI encoding
-}
-
-// Implement other interface methods...
-```
+1. **Single VowelMark per syllable** - Words requiring multiple marks (người, lươn) not fully supported
+2. **No undo functionality** - Can't undo tone with 'z' or double-modifier
+3. **Telex-only** - VNI and VIQR not implemented yet
 
 ## D-Bus Interface
 
-The daemon exposes the following D-Bus interface:
+- **Service:** `com.github.goviet.ime`
+- **Object Path:** `/Engine`
+- **Methods:**
+  - `ProcessKey(keysym uint32, modifiers uint32) → (handled bool, commit string, preedit string)`
+  - `Reset()`
+  - `SetEnabled(enabled bool)`
+  - `GetPreedit() → (preedit string)`
 
-- **Service Name**: `com.github.goviet.ime`
-- **Object Path**: `/Engine`
+## Extending
 
-### Methods
+### Adding New Input Method
 
-- `ProcessKey(keysym uint32, modifiers uint32) → (handled bool, commitText string, preedit string)`
-- `Reset()`
-- `SetEnabled(enabled bool)`
-- `GetPreedit() → (preedit string)`
+1. Create new file (e.g., `vni.go`)
+2. Implement `InputMethod` interface
+3. Add tests
+4. Register in daemon
 
-## TODO
+### Adding New Output Format
 
-- [ ] Add VNI input method
-- [ ] Add VIQR input method
-- [ ] Add output format options (VNI, TCVN3)
-- [ ] Add dictionary-based word prediction
-- [ ] Add configuration support (via D-Bus)
-- [ ] Add undo/redo support
+1. Create new file (e.g., `vni_output.go`)
+2. Implement `OutputFormat` interface
+3. Add character mapping tables
+4. Add tests
+
+## Contributing
+
+See `AI_CONTEXT.md` in project root for detailed technical documentation and next steps.
