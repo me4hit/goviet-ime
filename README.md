@@ -19,8 +19,15 @@ GoViet-IME is a modern Vietnamese input method that combines a **Go backend** fo
 
 - Go 1.20+
 - CMake 3.16+
-- Fcitx5 development libraries
-- D-Bus development libraries
+- **Fcitx5 development libraries** (`fcitx5`)
+- **Extra CMake Modules** (`extra-cmake-modules`)
+- **D-Bus development libraries** (`dbus`)
+- **Base development tools** (`base-devel`, `pkgconf`)
+
+On **Arch Linux**:
+```bash
+sudo pacman -S cmake extra-cmake-modules fcitx5 pkgconf go base-devel
+```
 
 ### Build & Install
 
@@ -31,13 +38,14 @@ go build -o goviet-daemon ./cmd/daemon/
 
 # Build frontend
 cd ../frontend
+# If you moved the project, clear old cache: rm -rf build
 mkdir -p build && cd build
 cmake ..
 make
 sudo make install
 
-# Restart Fcitx5
-fcitx5 -r
+# Restart Fcitx5 to load changes
+fcitx5 -r &
 ```
 
 ### Run Backend (for development)

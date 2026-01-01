@@ -31,6 +31,8 @@ A Vietnamese input method engine for **Fcitx5** on Linux, using **Go backend** w
 - [x] **Multi-character coda** - Words like "càng", "tương" (ng coda) work correctly
 - [x] Tone placement algorithm (quy tắc cũ)
 - [x] Special key handling (backspace, space, enter, escape)
+- [x] **Improved Special Keys** - Proper handling for `Ctrl+A`, `Delete`, and `Tab`
+- [x] **Focus & Reset handling** - Auto-reset on window switch/focus change via D-Bus `Reset`
 - [x] Comprehensive unit tests (75+ test cases)
 
 ### 🔄 In Progress / Known Issues
@@ -172,12 +174,12 @@ go test -v -run TestUnicode ./internal/engine/...      # Unicode format tests
 **Object Path:** `/Engine`
 
 ### Methods
-| Method | Input | Output |
-|--------|-------|--------|
-| `ProcessKey` | (keysym uint32, modifiers uint32) | (handled bool, commit string, preedit string) |
-| `Reset` | () | () |
-| `SetEnabled` | (enabled bool) | () |
-| `GetPreedit` | () | (preedit string) |
+| Method | Input | Output | Notes |
+|--------|-------|--------|-------|
+| `ProcessKey` | (keysym uint32, modifiers uint32) | (handled, commit, preedit) | Now commits on Ctrl/Alt |
+| `Reset` | () | () | Clears internal buffer immediately |
+| `SetEnabled` | (enabled bool) | () | |
+| `GetPreedit` | () | (preedit string) | |
 
 ## 9. Next Steps (Priority Order)
 
