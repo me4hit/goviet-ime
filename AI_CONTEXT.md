@@ -17,7 +17,7 @@ A Vietnamese input method engine for **Fcitx5** on Linux, using **Go backend** w
 - **Backend:** Go (composition engine, Telex input method)
 - **Build System:** CMake (frontend), Go modules (backend)
 
-## 2. Current Status (2026-01-01)
+## 2. Current Status (2026-01-02)
 
 ### ✅ Completed
 - [x] D-Bus communication between frontend and backend
@@ -38,6 +38,9 @@ A Vietnamese input method engine for **Fcitx5** on Linux, using **Go backend** w
 - [x] **Undo tone** - Typing 'z' removes tone, double modifier toggles tone
 - [x] **Improved Preedit Fallback** - Correctly handles mixed input (Vietnamese + unparsed English)
 - [x] **Deterministic Re-parsing** - Syllable structure is rebuilt precisely from raw buffer
+- [x] **Traditional Tone Rule** - Fixed placement for "của, mùa, lừa" (first vowel)
+- [x] **Modifier Filtering** - Successfully filters out redundant Telex modifiers from preedit display
+- [x] **Number Doubling Fix** - Resolved issues with non-linguistic characters doubling in buffer
 - [ ] **Undo vowel marks** - Repeating modifier key should undo transformation (e.g. `aaa` -> `aa`)
 - [ ] **Word boundary detection** - Better handling of punctuation and numbers
 

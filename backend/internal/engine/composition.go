@@ -81,10 +81,15 @@ func (e *CompositionEngine) GetPreedit() string {
 	// Always try to compose from structure first
 	composed := e.outputFormat.Compose(syllable)
 
-	// Append any unparsed characters from the raw buffer
+	// Append any unparsed characters from the raw buffer,
+	// but skip characters that are Telex modifiers if they were likely already consumed.
 	runes := []rune(raw)
 	if syllable.Consumed < len(runes) && syllable.Consumed >= 0 {
-		composed += string(runes[syllable.Consumed:])
+		for _, r := range runes[syllable.Consumed:] {
+			if !isTelexModifier(r) {
+				composed += string(r)
+			}
+		}
 	}
 
 	if composed != "" {
@@ -219,6 +224,8 @@ func (e *CompositionEngine) handleBackspace() ProcessResult {
 
 	// Re-parse the syllable using full processKeyInternal logic
 	e.Reset()
+	// OPTIMIZATION: processKeyInternal will call updateSyllableStructure
+	// which is now faster due to global map.
 	for _, r := range newRaw {
 		e.processKeyInternal(r)
 	}
@@ -451,6 +458,44 @@ func (e *CompositionEngine) updateSyllableStructure() {
 		}
 	}
 
+	// Rule: Automatic vowel mark transformation for ia/ua/ia patterns followed by a coda.
+	// E.g. i + e + n -> iên, u + o + n -> uôn
+	if coda != "" && len(nucleus) >= 2 {
+		nRunes := []rune(nucleus)
+		first := unicode.ToLower(nRunes[0])
+		second := unicode.ToLower(nRunes[1])
+
+		// 'ia' + coda -> iê (tiền, tiếng)
+		if first == 'i' && second == 'e' {
+			if unicode.IsUpper(nRunes[1]) {
+				nRunes[1] = 'Ê'
+			} else {
+				nRunes[1] = 'ê'
+			}
+			nucleus = string(nRunes)
+		}
+		// 'ua' + coda -> uô (buồn, muốn)
+		if first == 'u' && second == 'o' {
+			if unicode.IsUpper(nRunes[1]) {
+				nRunes[1] = 'Ô'
+			} else {
+				nRunes[1] = 'ô'
+			}
+			nucleus = string(nRunes)
+		}
+	}
+
+	// Important: Skip ANY remaining Telex modifiers in the raw buffer.
+	// This prevents modifiers that were consumed but didn't fit the
+	// strict syllable structure from being shown as unparsed suffixes.
+	for i < len(runes) {
+		if isTelexModifier(runes[i]) {
+			i++
+		} else {
+			break
+		}
+	}
+
 	e.buffer.syllable.Onset = onset
 	e.buffer.syllable.Nucleus = nucleus
 	e.buffer.syllable.Coda = coda
@@ -488,13 +533,14 @@ func isVietnameseConsonantRune(r rune) bool {
 	return false
 }
 
+var validCodas = map[string]bool{
+	"c": true, "ch": true, "m": true, "n": true,
+	"ng": true, "nh": true, "p": true, "t": true,
+}
+
 // isValidCoda checks if a consonant can be a valid coda in Vietnamese.
 func isValidCoda(s string) bool {
 	lower := strings.ToLower(s)
-	validCodas := map[string]bool{
-		"c": true, "ch": true, "m": true, "n": true,
-		"ng": true, "nh": true, "p": true, "t": true,
-	}
 	return validCodas[lower]
 }
 

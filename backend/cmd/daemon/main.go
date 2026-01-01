@@ -38,8 +38,8 @@ func (e *InputEngine) ProcessKey(keysym uint32, modifiers uint32) (bool, string,
 
 	result := e.engine.ProcessKey(event)
 
-	fmt.Printf(">>> [GoViet] Key: %d (Mods: %d) -> Handled: %v, Commit: %q, Preedit: %q\n",
-		keysym, modifiers, result.Handled, result.CommitText, result.Preedit)
+	// fmt.Printf(">>> [GoViet] Key: %d (Mods: %d) -> Handled: %v, Commit: %q, Preedit: %q\n",
+	// 	keysym, modifiers, result.Handled, result.CommitText, result.Preedit)
 
 	return result.Handled, result.CommitText, result.Preedit, nil
 }

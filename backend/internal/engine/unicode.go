@@ -86,7 +86,7 @@ func (u *UnicodeFormat) Compose(syllable *Syllable) string {
 		return ""
 	}
 	if syllable.Nucleus == "" && syllable.Onset == "" && syllable.Coda == "" {
-		return syllable.Raw
+		return ""
 	}
 
 	result := syllable.Onset
@@ -180,10 +180,10 @@ func findTonePosition(nucleus []rune, coda string) int {
 			return 0 // Traditional: nghĩa, not nghiã
 		}
 
-		// 'ua', 'ưa' without coda -> second vowel (a)
+		// 'ua', 'ưa' without coda -> FIRST vowel (u/ư) (traditional rule)
 		if (first == 'u' || first == 'U' || first == 'ư' || first == 'Ư') &&
 			(second == 'a' || second == 'A') {
-			return 1
+			return 0 // Traditional: của, mùa, lừa
 		}
 
 		// 'iê', 'uô', 'ươ' always -> the marked vowel (handled in rule 1)

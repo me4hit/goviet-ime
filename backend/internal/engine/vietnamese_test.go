@@ -103,7 +103,7 @@ func TestVietnameseWords_ComplexWords(t *testing.T) {
 		// But the tone is applied to ê, so: viêj -> viêt̤
 		// Actually in Telex: việt = v-i-ee-j-t
 		// "việt" = v-i-ệ-t
-		{"viet", []uint32{0x76, 0x69, 0x65, 0x74}, "viet"},
+		{"viet", []uint32{0x76, 0x69, 0x65, 0x74}, "viêt"},
 
 		// "đẹp" = d-d-e-j-p
 		{"ddejp (đẹp)", []uint32{0x64, 0x64, 0x65, 0x6a, 0x70}, "đẹp"},
