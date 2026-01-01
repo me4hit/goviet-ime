@@ -153,3 +153,27 @@ func TestVietnameseWords_SpaceCommits(t *testing.T) {
 		t.Errorf("Preedit = '%s', want 'chào'", result.Preedit)
 	}
 }
+
+func TestIssue_Dau(t *testing.T) {
+	engine := NewCompositionEngine()
+
+	// Type "dd" -> "đ"
+	engine.ProcessKey(KeyEvent{KeySym: 0x0064}) // d
+	engine.ProcessKey(KeyEvent{KeySym: 0x0064}) // d
+	if engine.GetPreedit() != "đ" {
+		t.Fatalf("Expected 'đ', got '%s'", engine.GetPreedit())
+	}
+
+	// Type "aa" -> "đâ"
+	engine.ProcessKey(KeyEvent{KeySym: 0x0061}) // a
+	engine.ProcessKey(KeyEvent{KeySym: 0x0061}) // a
+	if engine.GetPreedit() != "đâ" {
+		t.Fatalf("Expected 'đâ', got '%s'", engine.GetPreedit())
+	}
+
+	// Type "u" -> "đâu"
+	engine.ProcessKey(KeyEvent{KeySym: 0x0075}) // u
+	if engine.GetPreedit() != "đâu" {
+		t.Errorf("Expected 'đâu', got '%s'", engine.GetPreedit())
+	}
+}

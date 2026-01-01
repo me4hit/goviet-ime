@@ -35,8 +35,10 @@ A Vietnamese input method engine for **Fcitx5** on Linux, using **Go backend** w
 - [x] **Focus & Reset handling** - Auto-reset on window switch/focus change via D-Bus `Reset`
 - [x] Comprehensive unit tests (75+ test cases)
 
-### 🔄 In Progress / Known Issues
-- [ ] **Undo tone/mark** - Typing 'z' should remove tone, double modifier should undo
+- [x] **Undo tone** - Typing 'z' removes tone, double modifier toggles tone
+- [x] **Improved Preedit Fallback** - Correctly handles mixed input (Vietnamese + unparsed English)
+- [x] **Deterministic Re-parsing** - Syllable structure is rebuilt precisely from raw buffer
+- [ ] **Undo vowel marks** - Repeating modifier key should undo transformation (e.g. `aaa` -> `aa`)
 - [ ] **Word boundary detection** - Better handling of punctuation and numbers
 
 ### ❌ Not Started
@@ -94,43 +96,17 @@ goviet-ime/
 
 ## 5. Known Issues & Technical Debt
 
-### Issue 1: Single VowelMark Limitation
-**Problem:** Current `Syllable` struct only supports one `VowelMark`:
-```go
-type Syllable struct {
-    VowelMark VowelMark  // Only one!
-}
-```
+### Issue 1: VNI Input Method
+**Status:** Not started.
+**Plan:** Implement `InputMethod` interface for VNI. The `CompositionEngine` is now robust enough to support different methods by correctly interpreting the raw buffer.
 
-**Impact:** Can't handle words like:
-- "người" = ng + ư + ơ + i (needs BOTH ư and ơ)
-- "lươn" = l + ư + ơ + n
+### Issue 2: Tone Position Rules Configuration
+**Status:** Old rule implemented.
+**Plan:** Add a configuration option to switch between "old rule" and "new rule" for tone placement in `unicode.go`.
 
-**Proposed Fix:** Change to store marks per vowel position, or use a different representation:
-```go
-type Syllable struct {
-    VowelMarks map[int]VowelMark  // Mark per position
-    // OR
-    Nucleus string  // Already transformed: "ươ" instead of "uo" + marks
-}
-```
-
-### Issue 2: Preserved Nucleus Logic Complexity
-**Location:** `composition.go:updateSyllableStructure()`
-
-The logic for preserving transformed vowels (like oo→ô) when adding new characters is complex and fragile. Consider refactoring to:
-1. Store transformed nucleus directly
-2. Don't re-parse from raw buffer each time
-
-### Issue 3: isTelexModifier Hardcoded
-**Location:** `composition.go:isTelexModifier()`
-
-This function is Telex-specific but lives in the generic composition engine. Should be moved to `InputMethod` interface.
-
-### Issue 4: Tone Position Rules
-**Location:** `unicode.go:findTonePosition()`
-
-The Vietnamese tone placement rules are implemented for "quy tắc cũ" (old rule). Some users prefer "quy tắc mới" (new rule). This should be configurable.
+### Issue 3: Undo Vowel Marks
+**Status:** Partially implemented.
+**Plan:** Refactor `updateSyllableStructure` or the modifier logic to support "toggling" vowel marks when the same key is pressed multiple times (e.g., `aaa` -> `aa`).
 
 ## 6. Running the Project
 
@@ -183,10 +159,9 @@ go test -v -run TestUnicode ./internal/engine/...      # Unicode format tests
 
 ## 9. Next Steps (Priority Order)
 
-1. **Fix multiple vowel marks** - Critical for words like "người", "lươn"
-2. **Add undo functionality** - 'z' to remove tone, double modifier to undo
-3. **Add VNI input method** - Popular alternative to Telex
-4. **Add configuration** - Allow switching input methods, tone rules
+1. **Add VNI input method** - Popular alternative to Telex
+2. **Implement Vowel Mark Undo** - Toggle marks on/off with repeating keys
+3. **Add configuration** - Allow switching input methods, tone rules
 
 ## 10. Useful References
 

@@ -78,44 +78,19 @@ func (e *CompositionEngine) GetPreedit() string {
 		return raw
 	}
 
-	// Check if we have any composed content
-	hasComposedContent := syllable.Nucleus != "" || syllable.Onset != "" || syllable.Coda != ""
+	// Always try to compose from structure first
+	composed := e.outputFormat.Compose(syllable)
 
-	// Try to compose the syllable
-	if hasComposedContent {
-		// Check if all raw characters are accounted for in the parsed structure
-		parsedContent := syllable.Onset + syllable.Nucleus + syllable.Coda
-		parsedLen := len([]rune(parsedContent))
-		rawLen := len([]rune(raw))
-
-		// Account for modifier characters that were consumed (tones, vowel marks)
-		totalAccountedFor := parsedLen + e.buffer.modifierCount
-
-		// Only use composed output if all characters are accounted for
-		// OR if we have Telex modifiers applied
-		hasModifiers := syllable.ToneMark != ToneNone || syllable.VowelMark != VowelNone
-
-		if totalAccountedFor >= rawLen || hasModifiers {
-			// Compose the syllable
-			composed := e.outputFormat.Compose(syllable)
-
-			// If Compose returns raw (no nucleus), manually build from onset
-			if composed == syllable.Raw && syllable.Nucleus == "" && syllable.Onset != "" {
-				composed = syllable.Onset
-			}
-
-			if composed != "" {
-				// If we have unparsed trailing characters (not consumed as modifiers), append them
-				if totalAccountedFor < rawLen {
-					rawRunes := []rune(raw)
-					composed += string(rawRunes[totalAccountedFor:])
-				}
-				return composed
-			}
-		}
+	// Append any unparsed characters from the raw buffer
+	runes := []rune(raw)
+	if syllable.Consumed < len(runes) && syllable.Consumed >= 0 {
+		composed += string(runes[syllable.Consumed:])
 	}
 
-	// Fallback to raw input
+	if composed != "" {
+		return composed
+	}
+
 	return raw
 }
 
@@ -242,10 +217,10 @@ func (e *CompositionEngine) handleBackspace() ProcessResult {
 	runes := []rune(raw)
 	newRaw := string(runes[:len(runes)-1])
 
-	// Re-parse the syllable
-	e.buffer = NewCompositionBuffer()
+	// Re-parse the syllable using full processKeyInternal logic
+	e.Reset()
 	for _, r := range newRaw {
-		e.processCharInternal(r)
+		e.processKeyInternal(r)
 	}
 
 	result.Preedit = e.GetPreedit()
@@ -254,32 +229,32 @@ func (e *CompositionEngine) handleBackspace() ProcessResult {
 
 // processChar processes a regular character input.
 func (e *CompositionEngine) processChar(char rune) ProcessResult {
-	result := ProcessResult{Handled: true}
+	e.processKeyInternal(char)
+	return ProcessResult{
+		Handled: true,
+		Preedit: e.GetPreedit(),
+	}
+}
 
-	// Use the input method to process the character
+// processKeyInternal is a helper for re-parsing
+func (e *CompositionEngine) processKeyInternal(char rune) {
 	transformed, tone, vowelMark, consumed := e.inputMethod.ProcessChar(char, e.buffer.syllable)
 
 	if consumed {
-		// The character was consumed as a modifier
-		if tone != ToneNone {
-			e.buffer.syllable.ToneMark = tone
-			// Add the raw character for backspace support
-			e.buffer.raw.WriteRune(char)
-			e.buffer.modifierCount++
-		}
-		if vowelMark != VowelNone {
+		if e.inputMethod.IsToneKey(char) {
+			if e.buffer.syllable.ToneMark == tone && tone != ToneNone {
+				e.buffer.syllable.ToneMark = ToneNone
+			} else {
+				e.buffer.syllable.ToneMark = tone
+			}
+		} else if vowelMark != VowelNone || len(transformed) > 0 {
 			e.applyVowelMark(vowelMark, transformed)
-			// Add the raw character for backspace support
-			e.buffer.raw.WriteRune(char)
-			e.buffer.modifierCount++
 		}
+		e.buffer.raw.WriteRune(char)
+		e.updateSyllableStructure()
 	} else {
-		// Regular character - add to buffer
 		e.processCharInternal(char)
 	}
-
-	result.Preedit = e.GetPreedit()
-	return result
 }
 
 // processCharInternal adds a character to the buffer and updates the syllable.
@@ -287,13 +262,7 @@ func (e *CompositionEngine) processCharInternal(char rune) {
 	e.buffer.raw.WriteRune(char)
 
 	// Update syllable structure
-	if e.buffer.syllable.Raw == "" {
-		e.buffer.syllable = &Syllable{Raw: string(char)}
-	} else {
-		e.buffer.syllable.Raw += string(char)
-	}
-
-	// Determine if this is onset, nucleus, or coda
+	// The raw string is now the source of truth for updateSyllableStructure
 	e.updateSyllableStructure()
 }
 
@@ -302,8 +271,8 @@ func (e *CompositionEngine) applyVowelMark(mark VowelMark, transformed string) {
 	e.buffer.syllable.VowelMark = mark
 
 	// Special case for đ - it modifies the onset consonant 'd', not a vowel
-	if mark == VowelDBar && transformed != "" {
-		// Check if onset ends with 'd' and replace with 'đ'
+	if mark == VowelDBar && len(transformed) > 0 {
+		// Check if onset ends with 'd' and replace with 'đ"
 		if len(e.buffer.syllable.Onset) > 0 {
 			onset := []rune(e.buffer.syllable.Onset)
 			last := onset[len(onset)-1]
@@ -326,7 +295,7 @@ func (e *CompositionEngine) applyVowelMark(mark VowelMark, transformed string) {
 	}
 
 	// If transformed contains the result, update nucleus
-	if transformed != "" && len(e.buffer.syllable.Nucleus) > 0 {
+	if len(transformed) > 0 && len(e.buffer.syllable.Nucleus) > 0 {
 		// Replace the last vowel in the nucleus
 		nucleus := []rune(e.buffer.syllable.Nucleus)
 		nucleus[len(nucleus)-1] = []rune(transformed)[0]
@@ -338,49 +307,44 @@ func (e *CompositionEngine) applyVowelMark(mark VowelMark, transformed string) {
 func (e *CompositionEngine) updateSyllableStructure() {
 	raw := e.buffer.raw.String()
 	if raw == "" {
+		e.buffer.syllable = &Syllable{}
 		return
 	}
 
+	// Preserve ToneMark and reset structure
+	tone := e.buffer.syllable.ToneMark
+	e.buffer.syllable = &Syllable{Raw: raw, ToneMark: tone}
+
 	runes := []rune(raw)
-
-	// Preserve transformed onset if we have VowelDBar applied
-	preservedOnset := ""
-	if e.buffer.syllable.VowelMark == VowelDBar && e.buffer.syllable.Onset != "" {
-		// Check if the onset has been transformed to đ
-		onsetRunes := []rune(e.buffer.syllable.Onset)
-		if len(onsetRunes) > 0 {
-			last := onsetRunes[len(onsetRunes)-1]
-			if last == 'đ' || last == 'Đ' {
-				preservedOnset = e.buffer.syllable.Onset
-			}
-		}
-	}
-
-	// Preserve transformed nucleus if it contains marked vowels (like ô from oo, ơ from ow)
-	// This allows multiple vowel transformations (e.g., ươ in 'người')
-	preservedNucleus := ""
-	if e.buffer.syllable.Nucleus != "" {
-		// Check if nucleus contains ANY marked vowel - not just VowelMark flag
-		for _, r := range e.buffer.syllable.Nucleus {
-			if isMarkedVowelRune(r) {
-				preservedNucleus = e.buffer.syllable.Nucleus
-				break
-			}
-		}
-	}
-
 	onset := ""
 	nucleus := ""
 	coda := ""
-
 	i := 0
 
-	// Parse onset (initial consonants)
+	// Parse onset
 	for i < len(runes) {
 		r := runes[i]
 		if isVietnameseVowelRune(r) {
 			break
 		}
+
+		// Double-consonant 'dd' -> 'đ'
+		if (r == 'd' || r == 'D') && i+1 < len(runes) && (runes[i+1] == 'd' || runes[i+1] == 'D') {
+			if r == 'd' {
+				onset += "đ"
+			} else {
+				onset += "Đ"
+			}
+			i += 2
+			continue
+		}
+
+		// Only skip keys that are DEFINITELY not consonants in onset
+		if r == 'f' || r == 'F' || r == 'j' || r == 'J' || r == 'z' || r == 'Z' || r == 'w' || r == 'W' {
+			i++
+			continue
+		}
+
 		if isVietnameseConsonantRune(r) {
 			onset += string(r)
 			i++
@@ -389,102 +353,110 @@ func (e *CompositionEngine) updateSyllableStructure() {
 		}
 	}
 
-	// Parse nucleus (vowels) - skip consumed modifiers
+	// Parse nucleus
 	for i < len(runes) {
 		r := runes[i]
 		if isVietnameseVowelRune(r) {
-			nucleus += string(r)
-			i++
-		} else if isTelexModifier(r) {
-			// Skip consumed modifiers in the raw buffer
-			i++
-		} else {
-			break
-		}
-	}
-
-	// Parse coda (final consonants) - skip consumed modifiers
-	// Need to handle multi-character codas like 'ng', 'nh', 'ch'
-	for i < len(runes) {
-		r := runes[i]
-		if isTelexModifier(r) {
-			// Skip consumed modifiers
-			i++
-			continue
-		}
-
-		// Check for 2-character coda patterns first
-		if i+1 < len(runes) && isVietnameseConsonantRune(r) {
-			nextR := runes[i+1]
-			if !isTelexModifier(nextR) && isVietnameseConsonantRune(nextR) {
-				twoChar := string(r) + string(nextR)
-				if isValidCoda(twoChar) {
-					coda += twoChar
+			// Double-vowel transformations
+			if i+1 < len(runes) && unicode.ToLower(runes[i+1]) == unicode.ToLower(r) {
+				var transformed rune
+				switch unicode.ToLower(r) {
+				case 'a':
+					transformed = 'â'
+				case 'e':
+					transformed = 'ê'
+				case 'o':
+					transformed = 'ô'
+				}
+				if transformed != 0 {
+					if unicode.IsUpper(r) {
+						nucleus += string(unicode.ToUpper(transformed))
+					} else {
+						nucleus += string(transformed)
+					}
 					i += 2
 					continue
 				}
 			}
-		}
+			nucleus += string(r)
+			i++
+		} else if unicode.ToLower(r) == 'w' {
+			// Horn/Breve modifier
+			if len(nucleus) > 0 {
+				nucleusRunes := []rune(nucleus)
+				lastIdx := len(nucleusRunes) - 1
+				last := nucleusRunes[lastIdx]
 
-		// Check for single character coda
-		if isVietnameseConsonantRune(r) && isValidCoda(string(r)) {
-			coda += string(r)
+				var transformed rune
+				switch unicode.ToLower(last) {
+				case 'a':
+					transformed = 'ă'
+				case 'o':
+					// Special case: uo + w -> ươ
+					if len(nucleusRunes) >= 2 && unicode.ToLower(nucleusRunes[len(nucleusRunes)-2]) == 'u' {
+						u := nucleusRunes[len(nucleusRunes)-2]
+						transformedU := 'ư'
+						if unicode.IsUpper(u) {
+							transformedU = 'Ư'
+						}
+						nucleusRunes[len(nucleusRunes)-2] = transformedU
+					}
+					transformed = 'ơ'
+				case 'u':
+					transformed = 'ư'
+				}
+
+				if transformed != 0 {
+					if unicode.IsUpper(last) {
+						nucleusRunes[lastIdx] = unicode.ToUpper(transformed)
+					} else {
+						nucleusRunes[lastIdx] = transformed
+					}
+					nucleus = string(nucleusRunes)
+				}
+			}
+			i++
+		} else if isTelexModifier(r) {
 			i++
 		} else {
 			break
 		}
 	}
 
-	// Use preserved onset if we had a đ transformation
-	if preservedOnset != "" {
-		e.buffer.syllable.Onset = preservedOnset
-	} else {
-		e.buffer.syllable.Onset = onset
-	}
-
-	// Use preserved nucleus if we had a vowel mark transformation,
-	// but add any new vowels that came after
-	if preservedNucleus != "" {
-		// The preserved nucleus has transformed vowels (like 'ê' from 'ee' or 'ươ' from 'uwow')
-		// Raw nucleus contains only regular vowels (modifiers like 'w' already skipped)
-		// We need to match preserved marked vowels with raw vowels
-
-		rawNucleusRunes := []rune(nucleus)
-		preservedRunes := []rune(preservedNucleus)
-		preservedLen := len(preservedRunes)
-
-		// Count how many marked vowels are in preserved nucleus
-		// Each marked vowel (like 'ô' from 'oo') consumed an extra raw vowel
-		// But marks from 'w' modifier (like 'ơ' from 'ow') did NOT consume extra vowel
-
-		// Strategy: count marked vowels that came from double-vowel patterns
-		// â from aa, ê from ee, ô from oo - these consumed 1 extra
-		// ơ from ow, ư from uw, ă from aw - these did NOT consume extra (w is modifier, already skipped)
-
-		consumedExtraVowels := 0
-		for _, r := range preservedRunes {
-			// Only â, ê, ô can come from double-vowel patterns
-			// ơ, ư come from 'w' modifier, ă comes from 'aw'
-			if r == 'â' || r == 'Â' || r == 'ê' || r == 'Ê' || r == 'ô' || r == 'Ô' {
-				consumedExtraVowels++
+	// Parse coda
+	for i < len(runes) {
+		r := runes[i]
+		if isTelexModifier(r) {
+			i++
+			continue
+		}
+		if isVietnameseConsonantRune(r) {
+			// 2-character coda
+			if i+1 < len(runes) {
+				nextR := runes[i+1]
+				if isVietnameseConsonantRune(nextR) && isValidCoda(string(r)+string(nextR)) {
+					coda += string(r) + string(nextR)
+					i += 2
+					continue
+				}
 			}
-			// ơ, ư, ă - no extra vowel consumed since 'w' is already skipped
-		}
-
-		// Number of raw vowels that correspond to preserved
-		rawVowelsConsumed := preservedLen + consumedExtraVowels
-
-		if rawVowelsConsumed < len(rawNucleusRunes) {
-			// Add remaining vowels after the preserved ones
-			e.buffer.syllable.Nucleus = preservedNucleus + string(rawNucleusRunes[rawVowelsConsumed:])
+			if isValidCoda(string(r)) {
+				coda += string(r)
+				i++
+			} else {
+				break
+			}
 		} else {
-			e.buffer.syllable.Nucleus = preservedNucleus
+			break
 		}
-	} else {
-		e.buffer.syllable.Nucleus = nucleus
 	}
 
+	e.buffer.syllable.Onset = onset
+	e.buffer.syllable.Nucleus = nucleus
 	e.buffer.syllable.Coda = coda
+	e.buffer.syllable.Consumed = i
+
+	// Tone and VowelMark are already set in processChar
 }
 
 // isMarkedVowelRune checks if a rune is a vowel with diacritic mark

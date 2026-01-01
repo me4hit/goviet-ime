@@ -82,7 +82,10 @@ func (u *UnicodeFormat) ApplyVowelMark(char rune, mark VowelMark) string {
 
 // Compose creates the final Unicode string from a syllable.
 func (u *UnicodeFormat) Compose(syllable *Syllable) string {
-	if syllable == nil || syllable.Nucleus == "" {
+	if syllable == nil {
+		return ""
+	}
+	if syllable.Nucleus == "" && syllable.Onset == "" && syllable.Coda == "" {
 		return syllable.Raw
 	}
 

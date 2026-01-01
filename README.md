@@ -8,10 +8,10 @@ GoViet-IME is a modern Vietnamese input method that combines a **Go backend** fo
 
 ## Features
 
-- ✅ **Telex input method** - Full support for Vietnamese typing
-- ✅ **Unicode output** - Modern UTF-8 encoding
-- ✅ **Real-time composition** - See characters as you type
-- ✅ **Proper tone placement** - Following Vietnamese typography rules
+- ✅ **Telex input method** - Full support for tone replacement, toggling, and removal ('z')
+- ✅ **Proper tone placement** - Automatic placement based on Vietnamese grammar
+- ✅ **Complex vowel support** - Handles words with multiple vowel marks like "người", "lươn"
+- ✅ **Robust backspace** - Correctly reapplies diacritics when deleting characters
 
 ## Quick Start
 
@@ -88,8 +88,8 @@ goviet-ime/
 
 ## Known Issues
 
-1. Words requiring multiple vowel marks (người, lươn) have limited support
-2. Undo functionality not yet implemented
+1. **Undo vowel marks** - Toggling vowel marks by repeating the modifier key (e.g., `aaa` -> `aa`)
+2. **Dictionary support** - No built-in dictionary or word suggestions yet
 
 See [AI_CONTEXT.md](./AI_CONTEXT.md) for detailed issue descriptions and proposed fixes.
 

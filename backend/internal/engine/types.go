@@ -77,6 +77,7 @@ type Syllable struct {
 	Coda      string    // Final consonant(s) - phụ âm cuối
 	ToneMark  ToneMark  // Tone mark position
 	VowelMark VowelMark // Vowel modification
+	Consumed  int       // How many characters from Raw were accounted for
 }
 
 // Engine is the main interface for input method engines.
