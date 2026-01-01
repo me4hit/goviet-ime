@@ -137,8 +137,16 @@ func (e *CompositionEngine) ProcessKey(event KeyEvent) ProcessResult {
 		return specialResult
 	}
 
-	// Check for modifiers (Ctrl, Alt) - don't process these
+	// Check for modifiers (Ctrl, Alt) - commit and don't process these
 	if event.Modifiers&(ModControl|ModMod1) != 0 {
+		if e.buffer.raw.Len() > 0 {
+			preedit := e.GetPreedit()
+			e.Reset()
+			result.Handled = false
+			result.CommitText = preedit
+			result.Preedit = ""
+			return result
+		}
 		return result
 	}
 
@@ -202,6 +210,18 @@ func (e *CompositionEngine) handleSpecialKey(event KeyEvent) (ProcessResult, boo
 			return result, true
 		}
 		return result, false // Let tab pass through
+
+	case KeyDelete:
+		// If we have preedit, commit it and then let Delete pass to app
+		if e.buffer.raw.Len() > 0 {
+			preedit := e.GetPreedit()
+			e.Reset()
+			result.Handled = false
+			result.CommitText = preedit
+			result.Preedit = ""
+			return result, true
+		}
+		return result, false
 	}
 
 	return result, false

@@ -1,5 +1,7 @@
 # Binaries
+build/
 frontend/build/
+backend/build/
 backend/goviet-daemon
 **/__pycache__/
 *.so
