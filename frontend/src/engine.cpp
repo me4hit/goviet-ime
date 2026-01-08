@@ -47,21 +47,30 @@ void GoVietEngine::keyEvent(const fcitx::InputMethodEntry &entry,
   // Get InputContext
   auto inputContext = keyEvent.inputContext();
 
-  // Commit text (if any)
+  // Commit text first (if any)
   if (!commit.empty()) {
+    // Clear preedit before committing to prevent duplicate
+    inputContext->inputPanel().setClientPreedit(fcitx::Text());
+    inputContext->updatePreedit();
     inputContext->commitString(commit);
   }
 
-  // Update Preedit
+  // Update Preedit (only if we have preedit and haven't committed)
   if (!preedit.empty()) {
-    fcitx::Text text(preedit);
+    fcitx::Text text;
+    // Add underline format to indicate this is preedit, not committed text
+    text.append(preedit, fcitx::TextFormatFlag::Underline);
     text.setCursor(preedit.length());
     inputContext->inputPanel().setClientPreedit(text);
-  } else {
+    inputContext->updatePreedit();
+  } else if (commit.empty()) {
+    // Only clear preedit if we didn't just commit
     inputContext->inputPanel().setClientPreedit(fcitx::Text());
+    inputContext->updatePreedit();
   }
 
-  inputContext->updatePreedit();
+  // Update UI
+  inputContext->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
 
   if (handled) {
     // Intercept key

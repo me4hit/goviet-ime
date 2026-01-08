@@ -269,7 +269,7 @@ func TestKeysymToRune(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.expected), func(t *testing.T) {
-			result := keysymToRune(tt.keysym)
+			result := KeysymToRune(tt.keysym)
 			if result != tt.expected {
 				t.Errorf("keysymToRune(%x) = %c (%x), want %c (%x)",
 					tt.keysym, result, result, tt.expected, tt.expected)

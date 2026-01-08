@@ -17,11 +17,12 @@ A Vietnamese input method engine for **Fcitx5** on Linux, using **Go backend** w
 - **Backend:** Go (composition engine, Telex input method)
 - **Build System:** CMake (frontend), Go modules (backend)
 
-## 2. Current Status (2026-01-02)
+## 2. Current Status (2026-01-09)
 
 ### ✅ Completed
 - [x] D-Bus communication between frontend and backend
 - [x] Telex input method implementation
+- [x] **VNI input method implementation** - Full support with number keys 0-9
 - [x] Unicode output format
 - [x] Tone marks (sắc, huyền, hỏi, ngã, nặng)
 - [x] Vowel marks (ă, â, ê, ô, ơ, ư, đ)
@@ -30,26 +31,31 @@ A Vietnamese input method engine for **Fcitx5** on Linux, using **Go backend** w
 - [x] **Multiple vowel marks** - Words like "người" (ươ) now work correctly
 - [x] **Multi-character coda** - Words like "càng", "tương" (ng coda) work correctly
 - [x] Tone placement algorithm (quy tắc cũ)
+- [x] **Modern Tone Rule Toggle** - Can switch between old (hoà) and new (hòa) rules
 - [x] Special key handling (backspace, space, enter, escape)
 - [x] **Improved Special Keys** - Proper handling for `Ctrl+A`, `Delete`, and `Tab`
 - [x] **Focus & Reset handling** - Auto-reset on window switch/focus change via D-Bus `Reset`
-- [x] Comprehensive unit tests (75+ test cases)
-
+- [x] Comprehensive unit tests (100+ test cases)
 - [x] **Undo tone** - Typing 'z' removes tone, double modifier toggles tone
 - [x] **Improved Preedit Fallback** - Correctly handles mixed input (Vietnamese + unparsed English)
 - [x] **Deterministic Re-parsing** - Syllable structure is rebuilt precisely from raw buffer
 - [x] **Traditional Tone Rule** - Fixed placement for "của, mùa, lừa" (first vowel)
 - [x] **Modifier Filtering** - Successfully filters out redundant Telex modifiers from preedit display
 - [x] **Number Doubling Fix** - Resolved issues with non-linguistic characters doubling in buffer
-- [ ] **Undo vowel marks** - Repeating modifier key should undo transformation (e.g. `aaa` -> `aa`)
-- [ ] **Word boundary detection** - Better handling of punctuation and numbers
+- [x] **Validation First** - Validates Vietnamese before transformation (prevents English text from being modified)
+- [x] **Double-Key Revert** - Press same key twice to revert transformation (aa→â→aa)
+- [x] **W-as-Vowel** - Single 'w' becomes 'ư' when valid in Telex mode
+- [x] **Configuration System** - EngineConfig with toggleable features
+
+### 🚧 In Progress
+- [ ] **UO Compound Complete** - Both u→ư and o→ơ for VNI (partial implementation)
 
 ### ❌ Not Started
-- [ ] VNI input method
 - [ ] VIQR input method
 - [ ] Output format options (VNI Windows, TCVN3)
 - [ ] Configuration via D-Bus
 - [ ] Dictionary-based word prediction
+- [ ] Shortcut table (abbreviation expansion)
 
 ## 3. Directory Structure
 

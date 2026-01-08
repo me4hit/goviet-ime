@@ -71,13 +71,14 @@ const (
 
 // Syllable represents a Vietnamese syllable being composed.
 type Syllable struct {
-	Raw       string    // Raw input characters
-	Onset     string    // Initial consonant(s) - phụ âm đầu
-	Nucleus   string    // Vowel cluster - nguyên âm
-	Coda      string    // Final consonant(s) - phụ âm cuối
-	ToneMark  ToneMark  // Tone mark position
-	VowelMark VowelMark // Vowel modification
-	Consumed  int       // How many characters from Raw were accounted for
+	Raw               string    // Raw input characters
+	Onset             string    // Initial consonant(s) - phụ âm đầu
+	Nucleus           string    // Vowel cluster - nguyên âm
+	Coda              string    // Final consonant(s) - phụ âm cuối
+	ToneMark          ToneMark  // Tone mark position
+	VowelMark         VowelMark // Vowel modification
+	Consumed          int       // How many characters from Raw were accounted for
+	ConsumedModifiers int       // How many modifier keys were used in transformation
 }
 
 // Engine is the main interface for input method engines.

@@ -94,13 +94,18 @@ func (u *UnicodeFormat) Compose(syllable *Syllable) string {
 	// Find the position to place the tone mark
 	nucleus := []rune(syllable.Nucleus)
 	tonePos := findTonePosition(nucleus, syllable.Coda)
+	lastVowelIdx := len(nucleus) - 1
 
 	for i, r := range nucleus {
-		// Apply vowel mark first
+		// Apply vowel mark ONLY to the last vowel (the one being modified)
+		// Exception: for uo+w patterns, both vowels are modified (handled in updateSyllableStructure)
 		modified := r
-		if marks, ok := unicodeVowelMarks[r]; ok {
-			if result, ok := marks[syllable.VowelMark]; ok {
-				modified = result
+		if i == lastVowelIdx && syllable.VowelMark != VowelNone {
+			// Only apply vowel mark to the last vowel
+			if marks, ok := unicodeVowelMarks[r]; ok {
+				if result, ok := marks[syllable.VowelMark]; ok {
+					modified = result
+				}
 			}
 		}
 
@@ -117,6 +122,7 @@ func (u *UnicodeFormat) Compose(syllable *Syllable) string {
 }
 
 // findTonePosition determines where to place the tone mark in a vowel cluster.
+// Uses the traditional (old) rule by default.
 // Vietnamese tone placement rules (in order of priority):
 // 1. If there's a marked vowel (ă, â, ê, ô, ơ, ư), put tone on it
 // 2. If syllable has 'oa', 'oe', 'oo', 'uy' -> tone on the second vowel
@@ -125,6 +131,12 @@ func (u *UnicodeFormat) Compose(syllable *Syllable) string {
 // 5. If no coda and 2+ vowels -> tone on the second vowel
 // 6. Otherwise, tone on the only vowel
 func findTonePosition(nucleus []rune, coda string) int {
+	return findTonePositionWithRule(nucleus, coda, ToneRuleOld)
+}
+
+// findTonePositionWithRule determines where to place the tone mark with configurable rule
+// rule: ToneRuleOld (traditional) or ToneRuleNew (modern)
+func findTonePositionWithRule(nucleus []rune, coda string, rule ToneRule) int {
 	n := len(nucleus)
 	if n == 0 {
 		return 0
@@ -168,22 +180,28 @@ func findTonePosition(nucleus []rune, coda string) int {
 	}
 
 	// Rule 3: For complex vowel pairs without coda
-	// Using traditional/old rule (quy tắc cũ):
-	// - 'ia' -> tone on 'i' (first vowel): nghĩa, mía, kìa
-	// - 'ua', 'ưa' -> tone on 'a' (second vowel): mùa, lừa
+	// The difference between old and new rule:
+	// Old rule (quy tắc cũ): hoà, của, mùa - tone on FIRST vowel
+	// New rule (quy tắc mới): hòa, của, mùa - tone on SECOND vowel (last 'a')
 	if n >= 2 && coda == "" {
 		first := nucleus[0]
 		second := nucleus[1]
 
-		// 'ia' without coda -> FIRST vowel (traditional rule)
+		// 'ia' without coda
 		if (first == 'i' || first == 'I') && (second == 'a' || second == 'A') {
-			return 0 // Traditional: nghĩa, not nghiã
+			if rule == ToneRuleNew {
+				return 1 // Modern: nghiã (on 'a')
+			}
+			return 0 // Traditional: nghĩa (on 'i')
 		}
 
-		// 'ua', 'ưa' without coda -> FIRST vowel (u/ư) (traditional rule)
+		// 'ua', 'ưa' without coda
 		if (first == 'u' || first == 'U' || first == 'ư' || first == 'Ư') &&
 			(second == 'a' || second == 'A') {
-			return 0 // Traditional: của, mùa, lừa
+			if rule == ToneRuleNew {
+				return 1 // Modern: mùa -> mùa (on 'a')
+			}
+			return 0 // Traditional: mùa (on 'u')
 		}
 
 		// 'iê', 'uô', 'ươ' always -> the marked vowel (handled in rule 1)
